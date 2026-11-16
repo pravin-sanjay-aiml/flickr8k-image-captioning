@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Flickr8k Captioning Demo</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#667085;--ac:#2f5fd0;--bd:#e3e6ea}@media(prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2128;--tx:#e8eaed;--mut:#9aa3ae;--ac:#7aa2ff;--bd:#2c323b}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--tx)}main{max-width:1000px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}p.sub{color:var(--mut);margin:0 0 16px}.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+select,button,input[type=file]{font:inherit;padding:7px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx)}button{cursor:pointer;background:var(--ac);color:#fff;border:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.grid img{width:100%;height:120px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent}.grid img.on{border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-top:16px}.cap{font-size:20px;font-weight:600}.mut{color:var(--mut);font-size:13px}.view{display:flex;gap:16px;flex-wrap:wrap}.view img{max-width:360px;width:100%;border-radius:8px}
+ul{margin:6px 0 0;padding-left:18px}</style></head><body><main>
+<h1>Image captioning demo</h1><p class="sub">Frozen CLIP ViT-B/32 image encoder + cross-attention transformer decoder, trained on Flickr8k. Click a held-out test image.</p>
+<div class="row"><label>Decoding <select id="mode"><option value="beam">beam (3)</option><option value="greedy">greedy</option></select></label>
+<label>Upload your own <input type="file" id="up" accept="image/*"></label><span class="mut" id="st"></span></div>
+<div class="grid" id="grid"></div>
+<div class="card" id="out" hidden><div class="view"><img id="img" alt="selected"><div style="flex:1;min-width:240px"><div class="mut">Model caption</div><div class="cap" id="cap"></div><div class="mut" id="lat"></div><div class="mut" style="margin-top:12px">Human reference captions</div><ul id="refs"></ul></div></div></div>
+<p class="mut">Scores on 1,000 test images: CIDEr 73.8±2.1, BLEU-4 28.1±0.9 (3 seeds). Not a fine-tuned BLIP; decoder language model is trained from scratch. Captions can be wrong (e.g. rugby called soccer).</p></main>
+<script>
+const $=i=>document.getElementById(i);let cur=null;
+async function show(src,data){$("out").hidden=false;$("img").src=src;$("cap").textContent=data.caption;$("lat").textContent=data.latency_ms+" ms · "+data.mode;$("refs").innerHTML=(data.references||[]).map(r=>"<li></li>").join("");[...$("refs").children].forEach((li,i)=>li.textContent=data.references[i]);if(!data.references)$("refs").innerHTML="<li>(uploaded image: no references)</li>"}
+async function pick(i,el){cur=i;document.querySelectorAll(".grid img").forEach(x=>x.classList.remove("on"));el.classList.add("on");$("st").textContent="captioning…";
+ const r=await fetch(`/caption/sample/${i}?mode=${$("mode").value}`);const d=await r.json();$("st").textContent="";show(el.src,d)}
+$("mode").onchange=()=>{const el=document.querySelector(".grid img.on");if(el&&cur!==null)pick(cur,el)};
+$("up").onchange=async e=>{const f=e.target.files[0];if(!f)return;$("st").textContent="captioning…";const fd=new FormData();fd.append("file",f);
+ const r=await fetch(`/caption/upload?mode=${$("mode").value}`,{method:"POST",body:fd});const d=await r.json();$("st").textContent="";if(!r.ok){alert(d.error||d.detail||"error");return}show(URL.createObjectURL(f),d)};
+fetch("/samples").then(r=>r.json()).then(L=>{L.forEach(s=>{const im=document.createElement("img");im.src=s.image;im.alt="sample "+s.id;im.onclick=()=>pick(s.id,im);$("grid").appendChild(im)})});
+</script></body></html>
